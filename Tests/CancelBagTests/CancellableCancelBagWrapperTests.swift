@@ -4,7 +4,7 @@ import Testing
 struct CancellableCancelBagWrapperTests {
     @Test("Storing new work on a CancellableCancelBag cancels the previous entry")
     func storeReplacesPreviousWork() {
-        var storedBag = CancellableCancelBag()
+        let storedBag = CancellableCancelBag()
         let bag = storedBag.wrappedValue
         let firstTask = makeLongRunningTask()
         let secondTask = makeLongRunningTask()
@@ -17,23 +17,23 @@ struct CancellableCancelBagWrapperTests {
         #expect(bag.count == 1)
     }
 
-    @Test("Assigning a different CancelBag resets the kept bag and cancels the discarded one")
-    func assignmentResetsInPlaceAndCancelsDiscarded() {
+    @Test("Assigning a different CancelBag adopts it and cancels the previous one")
+    func assignmentAdoptsTheNewBag() {
         var storedBag = CancellableCancelBag()
-        let keptBag = storedBag.wrappedValue
-        let keptTask = makeLongRunningTask()
-        keptTask.store(keptBag)
+        let previousBag = storedBag.wrappedValue
+        let previousTask = makeLongRunningTask()
+        previousTask.store(previousBag)
 
-        let discardedBag = CancelBag(replacesOnStore: true)
-        let discardedTask = makeLongRunningTask()
-        discardedTask.store(discardedBag)
+        let adoptedBag = CancelBag(replacesOnStore: true)
+        let adoptedTask = makeLongRunningTask()
+        adoptedTask.store(adoptedBag)
 
-        storedBag.wrappedValue = discardedBag
+        storedBag.wrappedValue = adoptedBag
 
-        #expect(keptTask.isCancelled)
-        #expect(discardedTask.isCancelled)
-        #expect(storedBag.wrappedValue === keptBag)
-        #expect(keptBag.isEmpty)
+        #expect(previousTask.isCancelled)
+        #expect(!adoptedTask.isCancelled)
+        #expect(storedBag.wrappedValue === adoptedBag)
+        #expect(adoptedBag.count == 1)
     }
 
     @Test("Assigning the same CancelBag instance is a no-op")
