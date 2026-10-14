@@ -5,7 +5,7 @@ import Foundation
 /// With `replacesOnStore: true` (used by `@CancellableCancelBag`), each new
 /// `store` cancels current entries first, then keeps the new one.
 /// `reset()` cancels without closing; `cancel()` closes so later `store` is rejected.
-public final class CancelBag: Cancellable {
+public final class CancelBag: Cancellable, @unchecked Sendable {
     private struct Entry {
         let cancellable: AnyCancellable
         let childBag: CancelBag?
@@ -17,6 +17,7 @@ public final class CancelBag: Cancellable {
     /// When true, each `store` / `insert` cancels current entries first.
     public let replacesOnStore: Bool
     private var entries: [Int: Entry] = [:]
+    private var nextID = 0
     private var isCancelled = false
 
     public var count: Int {
@@ -35,26 +36,28 @@ public final class CancelBag: Cancellable {
         self.replacesOnStore = replacesOnStore
     }
 
+    /// `nil` when the bag is already closed. The closure is cancelled and not stored.
     @discardableResult
-    func insert(_ cancellation: @escaping () -> Void) -> Int {
+    func insert(_ cancellation: @escaping () -> Void) -> Int? {
         let cancellable = AnyCancellable(cancellation)
         var previous: [AnyCancellable] = []
-        let result = lock.withLock { () -> (id: Int, stored: Bool) in
+        let id = lock.withLock { () -> Int? in
+            guard !isCancelled else { return nil }
             let id = makeUniqueID()
-            guard !isCancelled else { return (id, false) }
             if replacesOnStore {
                 previous = entries.values.map(\.cancellable)
                 entries.removeAll()
             }
             entries[id] = Entry(cancellable: cancellable, childBag: nil)
-            return (id, true)
+            return id
         }
 
         previous.forEach { $0.cancel() }
-        if !result.stored {
+        guard let id else {
             cancellable.cancel()
+            return nil
         }
-        return result.id
+        return id
     }
 
     @discardableResult
@@ -81,31 +84,40 @@ public final class CancelBag: Cancellable {
 
     @discardableResult
     func insert(_ childBag: CancelBag) -> Int? {
-        Self.hierarchyLock.withLock {
-            guard childBag !== self else { return nil }
-            guard !childBag.containsDescendant(self) else { return nil }
+        let outcome = Self.hierarchyLock.withLock { () -> ChildInsert in
+            guard childBag !== self else { return .rejected }
+            guard !childBag.containsDescendant(self) else { return .rejected }
 
             let cancellable = AnyCancellable {
                 childBag.cancel()
             }
             var previous: [AnyCancellable] = []
-            let result = lock.withLock { () -> (id: Int, stored: Bool) in
-                guard !isCancelled else { return (0, false) }
+            let id = lock.withLock { () -> Int? in
+                guard !isCancelled else { return nil }
                 let id = makeUniqueID()
                 if replacesOnStore {
                     previous = entries.values.map(\.cancellable)
                     entries.removeAll()
                 }
                 entries[id] = Entry(cancellable: cancellable, childBag: childBag)
-                return (id, true)
+                return id
             }
+            guard let id else {
+                return .closed(orphan: cancellable, previous: previous)
+            }
+            return .stored(id: id, previous: previous)
+        }
 
+        switch outcome {
+        case .rejected:
+            return nil
+        case .stored(let id, let previous):
             previous.forEach { $0.cancel() }
-            if !result.stored {
-                cancellable.cancel()
-                return nil
-            }
-            return result.id
+            return id
+        case .closed(let orphan, let previous):
+            previous.forEach { $0.cancel() }
+            orphan.cancel()
+            return nil
         }
     }
 
@@ -143,12 +155,13 @@ public final class CancelBag: Cancellable {
     }
 
     private func makeUniqueID() -> Int {
-        var id: Int
-
-        repeat {
-            id = Int.random(in: 1...Int.max)
-        } while entries[id] != nil
-
-        return id
+        nextID += 1
+        return nextID
     }
+}
+
+private enum ChildInsert {
+    case rejected
+    case stored(id: Int, previous: [AnyCancellable])
+    case closed(orphan: AnyCancellable, previous: [AnyCancellable])
 }

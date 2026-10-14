@@ -2,7 +2,7 @@ import Combine
 
 public extension Cancellable {
     @discardableResult
-    func store(_ bag: CancelBag) -> Int {
+    func store(_ bag: CancelBag) -> Int? {
         return bag.insert {
             self.cancel()
         }

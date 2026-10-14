@@ -16,12 +16,12 @@ let package = Package(
     targets: [
         .target(
             name: "CancelBag",
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "CancelBagTests",
             dependencies: ["CancelBag"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            swiftSettings: [.swiftLanguageMode(.v6)]
         ),
     ]
 )

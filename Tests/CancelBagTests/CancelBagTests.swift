@@ -22,9 +22,10 @@ struct CancelBagTests {
 
         let id = task.store(bag)
 
-        #expect(id > 0)
+        #expect(id != nil)
+        #expect((id ?? 0) > 0)
         #expect(bag.count == 1)
-        #expect(bag.remove(id))
+        #expect(bag.remove(id!))
         #expect(task.isCancelled)
         #expect(bag.isEmpty)
     }
@@ -116,8 +117,9 @@ struct CancelBagTests {
         task.store(bag)
         #expect(await task.value == 42)
 
-        for _ in 0..<10 where !bag.isEmpty {
-            await Task.yield()
+        let deadline = ContinuousClock().now.advanced(by: .seconds(2))
+        while !bag.isEmpty, ContinuousClock().now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
         }
         #expect(bag.isEmpty)
     }
@@ -153,8 +155,9 @@ struct CancelBagTests {
         let task = makeLongRunningTask()
 
         bag.cancel()
-        task.store(bag)
+        let id = task.store(bag)
 
+        #expect(id == nil)
         #expect(task.isCancelled)
         #expect(bag.isEmpty)
     }
