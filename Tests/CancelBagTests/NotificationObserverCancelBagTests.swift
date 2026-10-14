@@ -8,21 +8,15 @@ struct NotificationObserverCancelBagTests {
         let center = NotificationCenter()
         let name = Notification.Name("CancelBagTests.notification")
         let bag = CancelBag()
-        var receivedNotificationCount = 0
-        let observer = center.addObserver(
-            forName: name,
-            object: nil,
-            queue: nil
-        ) { _ in
-            receivedNotificationCount += 1
+        let received = Count()
+        center.addObserver(forName: name, object: nil, queue: nil, bag: bag) { _ in
+            received.value += 1
         }
-
-        observer.store(bag, center: center)
         center.post(name: name, object: nil)
         bag.reset()
         center.post(name: name, object: nil)
 
-        #expect(receivedNotificationCount == 1)
+        #expect(received.value == 1)
     }
 
     @Test("Storing a new observer accumulates with the previous one")
@@ -30,29 +24,22 @@ struct NotificationObserverCancelBagTests {
         let center = NotificationCenter()
         let name = Notification.Name("CancelBagTests.notification.accumulate")
         let bag = CancelBag()
-        var firstReceivedCount = 0
-        var secondReceivedCount = 0
-        let firstObserver = center.addObserver(
-            forName: name,
-            object: nil,
-            queue: nil
-        ) { _ in
-            firstReceivedCount += 1
+        let first = Count()
+        let second = Count()
+        center.addObserver(forName: name, object: nil, queue: nil, bag: bag) { _ in
+            first.value += 1
         }
-        let secondObserver = center.addObserver(
-            forName: name,
-            object: nil,
-            queue: nil
-        ) { _ in
-            secondReceivedCount += 1
+        center.addObserver(forName: name, object: nil, queue: nil, bag: bag) { _ in
+            second.value += 1
         }
-
-        firstObserver.store(bag, center: center)
-        secondObserver.store(bag, center: center)
         center.post(name: name, object: nil)
 
-        #expect(firstReceivedCount == 1)
-        #expect(secondReceivedCount == 1)
+        #expect(first.value == 1)
+        #expect(second.value == 1)
         #expect(bag.count == 2)
     }
+}
+
+private final class Count: @unchecked Sendable {
+    var value = 0
 }
