@@ -9,7 +9,7 @@ public extension Task {
 
         Task<Void, Never> { [weak bag] in
             _ = await self.result
-            bag?.remove(id)
+            bag?.forget(id)
         }
         return id
     }

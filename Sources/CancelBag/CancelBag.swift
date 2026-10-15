@@ -7,7 +7,7 @@ import Foundation
 /// `reset()` cancels without closing; `cancel()` closes so later `store` is rejected.
 public final class CancelBag: Cancellable, @unchecked Sendable {
     private struct Entry {
-        let cancellable: AnyCancellable
+        let hook: CancellationHook
         let childBag: CancelBag?
     }
 
@@ -38,36 +38,48 @@ public final class CancelBag: Cancellable, @unchecked Sendable {
 
     /// `nil` when the bag is already closed. The closure is cancelled and not stored.
     @discardableResult
-    func insert(_ cancellation: @escaping () -> Void) -> Int? {
-        let cancellable = AnyCancellable(cancellation)
-        var previous: [AnyCancellable] = []
+    func insert(_ cancellation: @escaping @Sendable () -> Void) -> Int? {
+        let hook = CancellationHook(cancellation)
+        var previous: [CancellationHook] = []
         let id = lock.withLock { () -> Int? in
             guard !isCancelled else { return nil }
             let id = makeUniqueID()
             if replacesOnStore {
-                previous = entries.values.map(\.cancellable)
+                previous = entries.values.map(\.hook)
                 entries.removeAll()
             }
-            entries[id] = Entry(cancellable: cancellable, childBag: nil)
+            entries[id] = Entry(hook: hook, childBag: nil)
             return id
         }
 
         previous.forEach { $0.cancel() }
         guard let id else {
-            cancellable.cancel()
+            hook.cancel()
             return nil
         }
         return id
     }
 
+    /// Drops the entry and runs its cancellation.
     @discardableResult
     public func remove(_ id: Int) -> Bool {
-        let cancellable = lock.withLock {
-            entries.removeValue(forKey: id)?.cancellable
+        let hook = lock.withLock {
+            entries.removeValue(forKey: id)?.hook
         }
 
-        cancellable?.cancel()
-        return cancellable != nil
+        hook?.cancel()
+        return hook != nil
+    }
+
+    /// Drops the entry and leaves the work running.
+    @discardableResult
+    public func forget(_ id: Int) -> Bool {
+        let hook = lock.withLock {
+            entries.removeValue(forKey: id)?.hook
+        }
+
+        hook?.disarm()
+        return hook != nil
     }
 
     public func reset() {
@@ -88,22 +100,22 @@ public final class CancelBag: Cancellable, @unchecked Sendable {
             guard childBag !== self else { return .rejected }
             guard !childBag.containsDescendant(self) else { return .rejected }
 
-            let cancellable = AnyCancellable {
+            let hook = CancellationHook {
                 childBag.cancel()
             }
-            var previous: [AnyCancellable] = []
+            var previous: [CancellationHook] = []
             let id = lock.withLock { () -> Int? in
                 guard !isCancelled else { return nil }
                 let id = makeUniqueID()
                 if replacesOnStore {
-                    previous = entries.values.map(\.cancellable)
+                    previous = entries.values.map(\.hook)
                     entries.removeAll()
                 }
-                entries[id] = Entry(cancellable: cancellable, childBag: childBag)
+                entries[id] = Entry(hook: hook, childBag: childBag)
                 return id
             }
             guard let id else {
-                return .closed(orphan: cancellable, previous: previous)
+                return .closed(orphan: hook, previous: previous)
             }
             return .stored(id: id, previous: previous)
         }
@@ -126,7 +138,7 @@ public final class CancelBag: Cancellable, @unchecked Sendable {
             if shouldClose {
                 isCancelled = true
             }
-            let storedCancellables = entries.values.map(\.cancellable)
+            let storedCancellables = entries.values.map(\.hook)
             entries.removeAll()
             return storedCancellables
         }
@@ -162,6 +174,31 @@ public final class CancelBag: Cancellable, @unchecked Sendable {
 
 private enum ChildInsert {
     case rejected
-    case stored(id: Int, previous: [AnyCancellable])
-    case closed(orphan: AnyCancellable, previous: [AnyCancellable])
+    case stored(id: Int, previous: [CancellationHook])
+    case closed(orphan: CancellationHook, previous: [CancellationHook])
+}
+
+/// Runs its action at most once. `disarm` drops the action without running it.
+private final class CancellationHook: @unchecked Sendable {
+    private let lock = NSLock()
+    private var action: (@Sendable () -> Void)?
+
+    init(_ action: @escaping @Sendable () -> Void) {
+        self.action = action
+    }
+
+    func cancel() {
+        let action = lock.withLock { () -> (@Sendable () -> Void)? in
+            let action = self.action
+            self.action = nil
+            return action
+        }
+        action?()
+    }
+
+    func disarm() {
+        lock.withLock {
+            action = nil
+        }
+    }
 }

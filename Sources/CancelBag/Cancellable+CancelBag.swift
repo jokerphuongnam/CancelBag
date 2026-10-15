@@ -3,8 +3,9 @@ import Combine
 public extension Cancellable {
     @discardableResult
     func store(_ bag: CancelBag) -> Int? {
+        nonisolated(unsafe) let cancellable = self
         return bag.insert {
-            self.cancel()
+            cancellable.cancel()
         }
     }
 }

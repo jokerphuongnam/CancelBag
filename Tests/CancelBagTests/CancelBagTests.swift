@@ -161,6 +161,17 @@ struct CancelBagTests {
         #expect(task.isCancelled)
         #expect(bag.isEmpty)
     }
+
+    @Test("forget drops an entry and leaves the task running")
+    func forgetLeavesWorkRunning() {
+        let bag = CancelBag()
+        let task = makeLongRunningTask()
+        let id = task.store(bag)
+
+        #expect(bag.forget(id!))
+        #expect(!task.isCancelled)
+        #expect(bag.isEmpty)
+    }
 }
 
 private final class CancelBagViewModelStub {
