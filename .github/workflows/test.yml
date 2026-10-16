@@ -11,3 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: swift test
         run: swift test
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: build for iOS Simulator
+        run: swift build --triple arm64-apple-ios17.0-simulator
