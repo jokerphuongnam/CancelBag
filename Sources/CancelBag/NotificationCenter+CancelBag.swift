@@ -13,10 +13,9 @@ public extension NotificationCenter {
         using block: @escaping @Sendable (Notification) -> Void
     ) -> Int? {
         let token = addObserver(forName: name, object: obj, queue: queue, using: block)
-        nonisolated(unsafe) let center = self
         nonisolated(unsafe) let observer = token
         return bag.insert {
-            center.removeObserver(observer)
+            self.removeObserver(observer)
         }
     }
 }

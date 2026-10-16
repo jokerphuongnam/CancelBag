@@ -6,20 +6,18 @@ public extension Timer {
     /// `invalidate`. A repeating timer stays until `cancel()`, `reset()`, or `remove`.
     @discardableResult
     func store(_ bag: CancelBag) -> Int? {
-        nonisolated(unsafe) let timer = self
-        let watch = TimerValidityWatch()
+        let watch = TimerValidityWatch(self)
         guard let id = bag.insert({
-            watch.stop()
-            timer.invalidate()
+            watch.invalidate()
         }) else {
             return nil
         }
 
-        guard timer.timeInterval == 0 else { return id }
+        guard watch.firesOnce else { return id }
 
         watch.task = Task { [weak bag] in
             while !Task.isCancelled {
-                if !timer.isValid {
+                if !watch.isValid {
                     bag?.forget(id)
                     return
                 }
@@ -31,10 +29,30 @@ public extension Timer {
 }
 
 private final class TimerValidityWatch: @unchecked Sendable {
+    private let lock = NSLock()
+    private var timer: Timer?
     var task: Task<Void, Never>?
 
-    func stop() {
-        task?.cancel()
-        task = nil
+    init(_ timer: Timer) {
+        self.timer = timer
+    }
+
+    var firesOnce: Bool {
+        lock.withLock { timer?.timeInterval == 0 }
+    }
+
+    var isValid: Bool {
+        lock.withLock { timer?.isValid ?? false }
+    }
+
+    func invalidate() {
+        let timer = lock.withLock { () -> Timer? in
+            task?.cancel()
+            task = nil
+            let timer = self.timer
+            self.timer = nil
+            return timer
+        }
+        timer?.invalidate()
     }
 }

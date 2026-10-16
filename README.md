@@ -115,7 +115,7 @@ RunLoop.main.add(repeating, forMode: .common)
 repeating.store(bag)
 ```
 
-A non-repeating timer has `timeInterval == 0`. It leaves the bag when `isValid` becomes false: after it fires on a run loop, or after something calls `invalidate`. It does not leave at `fireDate` if it never fired. A repeating timer stays until `cancel()`, `reset()`, or `remove`. `Timer` is not `Sendable`. The closure captures it as `nonisolated(unsafe)`.
+A non-repeating timer has `timeInterval == 0`. It leaves the bag when `isValid` becomes false: after it fires on a run loop, or after something calls `invalidate`. It does not leave at `fireDate` if it never fired. A repeating timer stays until `cancel()`, `reset()`, or `remove`. The timer stays inside a lock so the watching task does not capture it.
 
 ### URLSessionWebSocketTask
 
@@ -125,9 +125,7 @@ socket.store(bag)
 socket.resume()
 ```
 
-The bag cancels the socket with `URLSessionWebSocketTask.CloseCode.goingAway`. When the task reaches `.completed` or `.canceling`, it leaves the bag. The task is not `Sendable`.
-
-Leaving the bag depends on Key-Value Observing of `URLSessionTask.state`. Apple documents that property as observable. If a system version did not post that change, the socket would stay in the bag until `cancel()`, `reset()`, or `remove`.
+The bag cancels the socket with `URLSessionWebSocketTask.CloseCode.goingAway`. When the task reaches `.completed` or `.canceling`, it leaves the bag. Leaving the bag depends on Key-Value Observing of `URLSessionTask.state`. Apple documents that property as observable. If a system version did not post that change, the socket would stay in the bag until `cancel()`, `reset()`, or `remove`.
 
 ### NotificationCenter
 
@@ -142,7 +140,7 @@ NotificationCenter.default.addObserver(
 }
 ```
 
-This is the only notification API. The observer token never leaves the method, so `removeObserver` cannot be pointed at a view controller by mistake. The block is `@Sendable`. The center and the token are captured as `nonisolated(unsafe)`.
+This is the only notification API. The observer token never leaves the method, so `removeObserver` cannot be pointed at a view controller by mistake. The block is `@Sendable`. The observer token is captured as `nonisolated(unsafe)`.
 
 ## What is not included
 
