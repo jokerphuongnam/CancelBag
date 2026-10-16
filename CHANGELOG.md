@@ -8,6 +8,8 @@ The first public `v1.0.0` tag pointed at the initial commit, then at the fix com
 
 Stable release. MIT license, this changelog, an iOS Simulator build on CI, and a README section for each system extension: `Task`, Combine `Cancellable`, `DispatchWorkItem`, `Timer`, `URLSessionWebSocketTask`, and `NotificationCenter`.
 
+A non-repeating timer leaves the bag when it becomes invalid, not when the clock reaches `fireDate`. The WebSocket helper leaves the bag by observing `state`. That observation is documented as a dependency, not as a second cancellation path.
+
 ## 0.3.0-beta — 2026-10-15
 
 - `forget(id)` drops an entry and leaves the work running. `remove(id)` drops it and cancels it.

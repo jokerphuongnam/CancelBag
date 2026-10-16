@@ -28,12 +28,15 @@ struct TimerCancelBagTests {
         #expect(bag.count == 2)
     }
 
-    @Test("A non-repeating timer leaves the bag after its fire date")
+    @Test("A non-repeating timer leaves the bag when it becomes invalid")
     func nonRepeatingTimerLeavesTheBag() async {
         let bag = CancelBag()
-        let timer = Timer(fire: Date().addingTimeInterval(0.05), interval: 0, repeats: false) { _ in }
+        let timer = Timer(fire: Date().addingTimeInterval(60), interval: 0, repeats: false) { _ in }
 
         timer.store(bag)
+        #expect(bag.count == 1)
+
+        timer.invalidate()
 
         let deadline = ContinuousClock().now.advanced(by: .seconds(2))
         while !bag.isEmpty, ContinuousClock().now < deadline {
@@ -41,6 +44,6 @@ struct TimerCancelBagTests {
         }
 
         #expect(bag.isEmpty)
-        #expect(timer.isValid)
+        #expect(!timer.isValid)
     }
 }

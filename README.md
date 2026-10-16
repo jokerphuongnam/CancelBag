@@ -35,9 +35,16 @@ let bag = CancelBag()
 let task = Task {
     try await Task.sleep(for: .seconds(30))
 }
-let id = task.store(bag)
-bag.remove(id!)   // cancels the task
-bag.forget(id!)   // would have left it running
+if let id = task.store(bag) {
+    bag.remove(id) // drop and cancel
+}
+
+let kept = Task {
+    try await Task.sleep(for: .seconds(30))
+}
+if let id = kept.store(bag) {
+    bag.forget(id) // drop and leave it running
+}
 ```
 
 Assigning another bag to `@CancellableCancelBag` adopts that instance and cancels the previous one. Assigning the same instance does nothing. `reset()` clears the current bag without replacing it.
@@ -104,7 +111,7 @@ RunLoop.main.add(repeating, forMode: .common)
 repeating.store(bag)
 ```
 
-A non-repeating timer has `timeInterval == 0`. It leaves the bag after its fire date, without a second `invalidate` from `forget`. A repeating timer stays until `cancel()`, `reset()`, or `remove`. `Timer` is not `Sendable`. The closure captures it as `nonisolated(unsafe)`.
+A non-repeating timer has `timeInterval == 0`. It leaves the bag when `isValid` becomes false: after it fires on a run loop, or after something calls `invalidate`. It does not leave at `fireDate` if it never fired. A repeating timer stays until `cancel()`, `reset()`, or `remove`. `Timer` is not `Sendable`. The closure captures it as `nonisolated(unsafe)`.
 
 ### URLSessionWebSocketTask
 
@@ -114,7 +121,9 @@ socket.store(bag)
 socket.resume()
 ```
 
-The bag cancels the socket with `URLSessionWebSocketTask.CloseCode.goingAway`. When the task reaches `.completed` or `.canceling`, it leaves the bag. The task is not `Sendable`. State is observed with KVO, and the token is kept inside the stored entry.
+The bag cancels the socket with `URLSessionWebSocketTask.CloseCode.goingAway`. When the task reaches `.completed` or `.canceling`, it leaves the bag. The task is not `Sendable`.
+
+Leaving the bag depends on Key-Value Observing of `URLSessionTask.state`. Apple documents that property as observable. If a system version did not post that change, the socket would stay in the bag until `cancel()`, `reset()`, or `remove`.
 
 ### NotificationCenter
 
@@ -133,4 +142,4 @@ This is the only notification API. The observer token never leaves the method, s
 
 ## What is not included
 
-There is no `URLSessionDataTask` or `AsyncStream` helper. Store those by cancelling them inside `bag.insert` from your own code, or wrap the work in a `Task` and `store` that task.
+There is no `URLSessionDataTask` or `AsyncStream` helper. Wrap that work in a `Task` and `store` the task. `insert` is not a public method.

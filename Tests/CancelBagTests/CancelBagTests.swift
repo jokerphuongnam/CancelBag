@@ -5,7 +5,7 @@ struct CancelBagTests {
     @Test("Releasing a ViewModel automatically cancels its stored work")
     func viewModelLifecycleCancelsStoredTask() {
         var viewModel: CancelBagViewModelStub? = CancelBagViewModelStub()
-        weak let releasedViewModel = viewModel
+        weak var releasedViewModel = viewModel
         let task = makeLongRunningTask()
 
         viewModel?.store(task)
