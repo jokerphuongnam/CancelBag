@@ -15,8 +15,9 @@ public extension Timer {
 
         guard watch.firesOnce else { return id }
 
-        watch.task = Task { [weak bag] in
+        watch.task = Task { [weak bag, weak watch] in
             while !Task.isCancelled {
+                guard let watch else { return }
                 if !watch.isValid {
                     bag?.forget(id)
                     return
@@ -54,5 +55,9 @@ private final class TimerValidityWatch: @unchecked Sendable {
             return timer
         }
         timer?.invalidate()
+    }
+
+    deinit {
+        task?.cancel()
     }
 }

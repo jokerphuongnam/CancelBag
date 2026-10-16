@@ -46,4 +46,17 @@ struct TimerCancelBagTests {
         #expect(bag.isEmpty)
         #expect(!timer.isValid)
     }
+
+    @Test("forget drops a non-repeating timer and leaves it valid")
+    func forgetLeavesNonRepeatingTimerValid() async throws {
+        let bag = CancelBag()
+        let timer = Timer(fire: Date().addingTimeInterval(60), interval: 0, repeats: false) { _ in }
+        let id = try #require(timer.store(bag))
+
+        #expect(bag.forget(id))
+        try await Task.sleep(for: .milliseconds(150))
+
+        #expect(bag.isEmpty)
+        #expect(timer.isValid)
+    }
 }
