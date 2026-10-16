@@ -36,6 +36,12 @@ public final class CancelBag: Cancellable, @unchecked Sendable {
         self.replacesOnStore = replacesOnStore
     }
 
+    /// `CancelBag { stop() }` runs `onCancel` when the bag is cancelled or released.
+    public convenience init(_ onCancel: @escaping @Sendable () -> Void) {
+        self.init()
+        insert(onCancel)
+    }
+
     /// `nil` when the bag is already closed. The closure is cancelled and not stored.
     @discardableResult
     func insert(_ cancellation: @escaping @Sendable () -> Void) -> Int? {

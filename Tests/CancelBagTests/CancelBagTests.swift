@@ -2,6 +2,24 @@ import Testing
 @testable import CancelBag
 
 struct CancelBagTests {
+    @Test("CancelBag { } runs the closure when the bag is cancelled or released")
+    func initClosureRunsWhenTheBagEnds() {
+        let flag = OnceFlag()
+        var bag: CancelBag? = CancelBag {
+            flag.mark()
+        }
+
+        bag?.cancel()
+        #expect(flag.value)
+
+        flag.value = false
+        bag = CancelBag {
+            flag.mark()
+        }
+        bag = nil
+        #expect(flag.value)
+    }
+
     @Test("Releasing a ViewModel automatically cancels its stored work")
     func viewModelLifecycleCancelsStoredTask() {
         var viewModel: CancelBagViewModelStub? = CancelBagViewModelStub()
@@ -179,6 +197,14 @@ private final class CancelBagViewModelStub {
 
     func store(_ task: Task<Void, Never>) {
         task.store(cancelBag)
+    }
+}
+
+private final class OnceFlag: @unchecked Sendable {
+    var value = false
+
+    func mark() {
+        value = true
     }
 }
 

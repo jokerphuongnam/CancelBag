@@ -20,6 +20,8 @@ Requires iOS 17, macOS 14, watchOS 10, tvOS 17, or visionOS 1.
 
 `store` keeps work. It returns an `Int` id, or `nil` when the bag is already closed. A closed bag also cancels the work you just tried to store.
 
+`CancelBag { stop() }` runs that closure when the bag is cancelled or released.
+
 | Call | Effect |
 | --- | --- |
 | `cancel()` | Cancel everything. Later `store` returns `nil`. |

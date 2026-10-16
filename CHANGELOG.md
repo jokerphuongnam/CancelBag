@@ -10,6 +10,8 @@ Stable release. MIT license, this changelog, an iOS Simulator build on CI, and a
 
 A non-repeating timer leaves the bag when it becomes invalid, not when the clock reaches `fireDate`. `forget` stops the validity watch without invalidating the timer. The WebSocket helper leaves the bag by observing `state`. That observation is documented as a dependency, not as a second cancellation path.
 
+`CancelBag { }` runs its closure when the bag is cancelled or released.
+
 ## 0.3.0-beta — 2026-10-15
 
 - `forget(id)` drops an entry and leaves the work running. `remove(id)` drops it and cancels it.
