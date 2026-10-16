@@ -84,7 +84,11 @@ When the task finishes, it leaves the bag and is not cancelled again. `Task` is 
 ```swift
 import Combine
 
-let cancellable = AnyCancellable { /* stop */ }
+let bag = CancelBag()
+let cancellable = NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+    .sink { note in
+        handle(note)
+    }
 cancellable.store(bag)
 ```
 
